@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from "react";
 import "./App.css";
-import { validateMove } from "./api";
+import { computeOutcome, validateMove } from "./api";
 
 function calculateWinner(squares) {
   const lines = [
@@ -88,14 +88,33 @@ function App() {
   const [theme] = useState("light"); // Keep light theme per style guide.
   const [squares, setSquares] = useState(() => Array(9).fill(null));
   const [xIsNext, setXIsNext] = useState(true);
+  const [backendOutcome, setBackendOutcome] = useState(() => ({
+    winner: null,
+    isDraw: false,
+    winningLine: null,
+  }));
 
   useEffect(() => {
     document.documentElement.setAttribute("data-theme", theme);
   }, [theme]);
 
-  const winner = useMemo(() => calculateWinner(squares), [squares]);
-  const winningLine = useMemo(() => calculateWinningLine(squares), [squares]);
-  const draw = useMemo(() => !winner && isDraw(squares), [winner, squares]);
+  // Keep local computation as a fallback; backend result is used if available.
+  const localWinner = useMemo(() => calculateWinner(squares), [squares]);
+  const localWinningLine = useMemo(
+    () => calculateWinningLine(squares),
+    [squares]
+  );
+  const localDraw = useMemo(
+    () => !localWinner && isDraw(squares),
+    [localWinner, squares]
+  );
+
+  const winner = backendOutcome.winner ?? localWinner;
+  const winningLine = backendOutcome.winningLine ?? localWinningLine;
+  const draw =
+    backendOutcome.winner == null && backendOutcome.isDraw
+      ? true
+      : localDraw;
 
   const currentPlayer = xIsNext ? "X" : "O";
 
@@ -114,6 +133,7 @@ function App() {
     /** Clears the board and starts a new game with X. */
     setSquares(Array(9).fill(null));
     setXIsNext(true);
+    setBackendOutcome({ winner: null, isDraw: false, winningLine: null });
   };
 
   // PUBLIC_INTERFACE
@@ -121,20 +141,37 @@ function App() {
     /** Handles a move for the current player at a given index (0..8). */
     if (winner || squares[index]) return;
 
-    // Optional: allow future backend validation without making gameplay dependent on it.
-    // This is intentionally "best-effort" and non-blocking.
+    // Validate with backend first. If backend says invalid, do not apply move.
+    // If backend is unreachable, fall back to local behavior.
     try {
-      await validateMove({ board: squares, index, player: currentPlayer });
+      const validation = await validateMove({
+        board: squares,
+        index,
+        player: currentPlayer,
+      });
+      if (!validation.valid) return;
     } catch (e) {
-      // Ignore validation issues for now.
+      // Backend unavailable; proceed with local play.
     }
 
-    setSquares((prev) => {
-      const next = prev.slice();
-      next[index] = currentPlayer;
-      return next;
-    });
+    const nextSquares = squares.slice();
+    nextSquares[index] = currentPlayer;
+
+    setSquares(nextSquares);
     setXIsNext((prev) => !prev);
+
+    // After applying the move, ask backend for outcome (winner/draw/highlight line).
+    // This is best-effort: fallback remains local calculation.
+    try {
+      const outcome = await computeOutcome({ board: nextSquares });
+      setBackendOutcome({
+        winner: outcome.winner ?? null,
+        isDraw: Boolean(outcome.isDraw),
+        winningLine: outcome.winningLine ?? null,
+      });
+    } catch (e) {
+      // Ignore outcome failures; local logic will be used.
+    }
   };
 
   const boardDisabled = Boolean(winner) || draw;

@@ -11,6 +11,23 @@ This project provides a minimal React template with a clean, modern UI and minim
 
 ## Getting Started
 
+### Backend API base URL (env var)
+
+This frontend calls a FastAPI backend for move validation and outcome computation.
+
+Set one of the following environment variables when starting/building the React app:
+
+- `REACT_APP_API_BASE` (preferred), or
+- `REACT_APP_BACKEND_URL`
+
+If neither is set (or it is empty), the app defaults to: `http://localhost:3001`.
+
+Example:
+
+```bash
+REACT_APP_API_BASE=http://localhost:3001 npm start
+```
+
 In the project directory, you can run:
 
 ### `npm start`
