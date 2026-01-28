@@ -1,8 +1,8 @@
-import { render, screen } from '@testing-library/react';
-import App from './App';
+import { render, screen } from "@testing-library/react";
+import App from "./App";
 
-test('renders learn react link', () => {
+test("renders tic tac toe title and reset button", () => {
   render(<App />);
-  const linkElement = screen.getByText(/learn react/i);
-  expect(linkElement).toBeInTheDocument();
+  expect(screen.getByText(/tic‑?tac‑?toe/i)).toBeInTheDocument();
+  expect(screen.getByRole("button", { name: /reset game/i })).toBeInTheDocument();
 });
